@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PROT || 5000;
 // middleware
 
@@ -24,6 +24,34 @@ const run = async () => {
     const usersCollection = client.db("Job-hunter").collection("users");
     const jobsCollection = client.db("Job-hunter").collection("jobs");
 
+    app.get("/jobs?:id", async (req, res) => {
+      try {
+        const id = req.query.id;
+        if (id) {
+          const query = { _id: new ObjectId(id) };
+          const result = await jobsCollection.findOne(query);
+          res.status(200).send({
+            success: true,
+            message: "Job data fetching successfully",
+            data: result,
+          });
+          return;
+        }
+        const result = await jobsCollection.find({}).toArray();
+        res.status(200).send({
+          success: true,
+          message: "All Jobs fetching success",
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "An error occurred while fetching Jobs",
+          error: error.message,
+        });
+      }
+    });
+
     app.post("/jobs", async (req, res) => {
       try {
         const jobsData = req.body;
@@ -37,6 +65,25 @@ const run = async () => {
         res.status(500).send({
           success: false,
           message: "An error occurred while jobs created",
+        });
+      }
+    });
+
+    app.get("/users/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const result = await usersCollection.findOne({ email: email });
+        console.log(result, email);
+        res.status(200).send({
+          success: true,
+          message: "user fetching success",
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "An error occurred while fetching user",
+          error: error.message,
         });
       }
     });
@@ -84,12 +131,19 @@ const run = async () => {
             message: "User information updated successfully",
             data: result,
           });
-        else if (result.upsertedCount > 0)
+        else if (result.upsertedCount > 0) {
           res.status(201).send({
             success: true,
             message: "User created successfully",
             data: result,
           });
+        } else {
+          res.status(200).send({
+            success: true,
+            message: "User Log in successfully",
+            data: result,
+          });
+        }
       } catch (error) {
         res.status(500).send({
           success: false,
