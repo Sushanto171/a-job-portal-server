@@ -23,8 +23,79 @@ const run = async () => {
   try {
     const usersCollection = client.db("Job-hunter").collection("users");
     const jobsCollection = client.db("Job-hunter").collection("jobs");
+    const recruitsCollection = client.db("Job-hunter").collection("recruits");
 
-    app.get("/jobs?:id", async (req, res) => {
+    app.get("/job-apply/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const filter = { email: email };
+        const result = await recruitsCollection.find(filter).toArray();
+        res
+          .status(200)
+          .send({
+            success: true,
+            message: "Job applied fetching success",
+            data: result,
+          });
+      } catch (error) {
+        res
+          .status(500)
+          .send({
+            success: false,
+            message: "An error occurred fetching job applied lists",
+            error: error.message,
+          });
+      }
+    });
+
+    app.post("/job-apply", async (req, res) => {
+      try {
+        const data = req.body;
+
+        const result = await recruitsCollection.insertOne(data);
+
+        res.status(201).send({
+          success: true,
+          message: "Job apply success",
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "An error occurred apply failed",
+          error: error.message,
+        });
+      }
+    });
+
+    app.get("/jobs-applied", async (req, res) => {
+      try {
+        const { email, id } = req.query;
+        if (email && id) {
+          const query = { email: email };
+          const user = await usersCollection.findOne(query);
+
+          const query2 = { _id: new ObjectId(id) };
+          const job = await jobsCollection.findOne(query2);
+          job.appliedName = user.name;
+          job.appliedEmail = user.email;
+          job.appliedPhoto = user.photo;
+          res.status(200).send({
+            success: true,
+            message: "Applied job data fetching success",
+            data: job,
+          });
+        }
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "An error occurred while applied.",
+          error: error.message,
+        });
+      }
+    });
+
+    app.get("/jobs", async (req, res) => {
       try {
         const id = req.query.id;
         if (id) {
@@ -73,7 +144,7 @@ const run = async () => {
       try {
         const email = req.params.email;
         const result = await usersCollection.findOne({ email: email });
-        console.log(result, email);
+
         res.status(200).send({
           success: true,
           message: "user fetching success",
