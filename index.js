@@ -30,21 +30,17 @@ const run = async () => {
         const email = req.params.email;
         const filter = { email: email };
         const result = await recruitsCollection.find(filter).toArray();
-        res
-          .status(200)
-          .send({
-            success: true,
-            message: "Job applied fetching success",
-            data: result,
-          });
+        res.status(200).send({
+          success: true,
+          message: "Job applied fetching success",
+          data: result,
+        });
       } catch (error) {
-        res
-          .status(500)
-          .send({
-            success: false,
-            message: "An error occurred fetching job applied lists",
-            error: error.message,
-          });
+        res.status(500).send({
+          success: false,
+          message: "An error occurred fetching job applied lists",
+          error: error.message,
+        });
       }
     });
 
@@ -95,9 +91,44 @@ const run = async () => {
       }
     });
 
+    // job update
+    app.put("/job/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const updateData = req.body;
+        // console.log(id, updateData);
+        const filter = { _id: new ObjectId(id) };
+        const update = {
+          $set: updateData,
+        };
+        const result = await jobsCollection.updateOne(filter, update);
+        res.status(200).send({
+          success: true,
+          message: "Job info update success",
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "An error occurred while fetching Jobs",
+          error: error.message,
+        });
+      }
+    });
+
     app.get("/jobs", async (req, res) => {
       try {
-        const id = req.query.id;
+        const { id, hr_email } = req.query;
+        if (hr_email) {
+          const query = { hr_email: hr_email };
+          const result = await jobsCollection.find(query).toArray();
+          res.status(200).send({
+            success: true,
+            message: "Job data fetching successfully",
+            data: result,
+          });
+          return;
+        }
         if (id) {
           const query = { _id: new ObjectId(id) };
           const result = await jobsCollection.findOne(query);
@@ -123,10 +154,11 @@ const run = async () => {
       }
     });
 
+    // a job post by user
     app.post("/jobs", async (req, res) => {
       try {
         const jobsData = req.body;
-        const result = await jobsCollection.insertMany(jobsData);
+        const result = await jobsCollection.insertOne(jobsData);
         res.status(201).send({
           success: true,
           message: "jobs created successfully",
