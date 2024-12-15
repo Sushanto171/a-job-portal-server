@@ -25,10 +25,30 @@ const run = async () => {
     const jobsCollection = client.db("Job-hunter").collection("jobs");
     const recruitsCollection = client.db("Job-hunter").collection("recruits");
 
+    // applied jobs filter by job id
+    app.get("/applications/:job_id", async (req, res) => {
+      try {
+        const job_id = req.params.job_id;
+        const filter = { job_id: job_id };
+        const result = await recruitsCollection.find(filter).toArray();
+        res.status(200).send({
+          success: true,
+          message: "Application fetching success",
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "sever error",
+          error: error.message,
+        });
+      }
+    });
+
     app.get("/job-apply/:email", async (req, res) => {
       try {
         const email = req.params.email;
-        const filter = { email: email };
+        const filter = { "applicantInfo.email": email };
         const result = await recruitsCollection.find(filter).toArray();
         res.status(200).send({
           success: true,
@@ -47,9 +67,23 @@ const run = async () => {
     app.post("/job-apply", async (req, res) => {
       try {
         const data = req.body;
-
         const result = await recruitsCollection.insertOne(data);
+        const query = { _id: new ObjectId(data.job_id) };
+        const job = await jobsCollection.findOne(query);
 
+        let count;
+
+        if (job.applicationCount > 0) {
+          count = job.applicationCount + 1;
+        } else {
+          count = 1;
+        }
+        // console.log(count);
+        const updateDoc = {
+          $set: { applicationCount: count },
+        };
+        const updateJob = await jobsCollection.updateOne(query, updateDoc);
+        console.log(updateJob);
         res.status(201).send({
           success: true,
           message: "Job apply success",
@@ -86,6 +120,27 @@ const run = async () => {
         res.status(500).send({
           success: false,
           message: "An error occurred while applied.",
+          error: error.message,
+        });
+      }
+    });
+
+    // job delete by id\
+    app.delete("/jobs/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await jobsCollection.deleteOne(query);
+        if (!result) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Content not found" });
+        }
+        res.status(200).send({});
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "An error occurred while deleted Jobs",
           error: error.message,
         });
       }
