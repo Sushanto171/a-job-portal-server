@@ -25,6 +25,28 @@ const run = async () => {
     const jobsCollection = client.db("Job-hunter").collection("jobs");
     const recruitsCollection = client.db("Job-hunter").collection("recruits");
 
+    // status update
+    app.patch("/status/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { action } = req.body;
+        const query = { _id: new ObjectId(id) };
+        const update = { $set: { status: action } };
+        const result = await recruitsCollection.updateOne(query, update);
+        res.status(200).send({
+          success: true,
+          message: "updated success",
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).send({
+          success: false,
+          message: "sever error",
+          error: error.message,
+        });
+      }
+    });
+
     // applied jobs filter by job id
     app.get("/applications/:job_id", async (req, res) => {
       try {
@@ -311,8 +333,8 @@ const run = async () => {
       }
     });
 
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
+    // await client.connect();
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
