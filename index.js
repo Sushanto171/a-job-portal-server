@@ -1,4 +1,6 @@
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const express = require("express");
 const app = express();
 const cors = require("cors");
@@ -7,7 +9,13 @@ const port = process.env.PROT || 5000;
 // middleware
 
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    credentials: true,
+    origin: "http://localhost:5173",
+  })
+);
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.0zizn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -25,6 +33,35 @@ const run = async () => {
     const jobsCollection = client.db("Job-hunter").collection("jobs");
     const recruitsCollection = client.db("Job-hunter").collection("recruits");
 
+    // jwt
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const secretKey = process.env.JWT_SECRET;
+      const token = jwt.sign(user, secretKey, { expiresIn: "1h" });
+      res
+        .status(200)
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ message: "JWT set successfully" });
+    });
+
+    // jwt for third party site
+    app.post("/jwt1", (req, res) => {
+      const user = req.body;
+      const secretKey = process.env.JWT_SECRET;
+      const token = jwt.sign(user, secretKey, { expiresIn: "20min" });
+
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+        })
+        .json({
+          message: "jwt token create success",
+        });
+    });
     // status update
     app.patch("/status/:id", async (req, res) => {
       try {
@@ -52,6 +89,7 @@ const run = async () => {
       try {
         const job_id = req.params.job_id;
         const filter = { job_id: job_id };
+
         const result = await recruitsCollection.find(filter).toArray();
         res.status(200).send({
           success: true,
@@ -71,12 +109,25 @@ const run = async () => {
       try {
         const email = req.params.email;
         const filter = { "applicantInfo.email": email };
-        const result = await recruitsCollection.find(filter).toArray();
-        res.status(200).send({
-          success: true,
-          message: "Job applied fetching success",
-          data: result,
-        });
+        const token = req.cookies.token;
+
+        // validation token
+        if (!token) {
+          return res.status(401).send({ message: "User unauthorized" });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log(decoded);
+        if (decoded) {
+          const result = await recruitsCollection.find(filter).toArray();
+          res.status(200).send({
+            success: true,
+            message: "Job applied fetching success",
+            data: result,
+          });
+        } else {
+          res.status(401).send({ message: "Unauthorized" });
+        }
       } catch (error) {
         res.status(500).send({
           success: false,
