@@ -11,12 +11,27 @@ const port = process.env.PROT || 5000;
 app.use(express.json());
 app.use(
   cors({
-    credentials: true,
     origin: "http://localhost:5173",
+    credentials: true,
   })
 );
 app.use(cookieParser());
 
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).json({ message: "unAuthorized access" });
+  }
+  jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
+    if (error) {
+      return res
+        .status(403)
+        .json({ message: "Forbidden: invalid or expired token" });
+    }
+    req.user = decoded;
+  });
+  next();
+};
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.0zizn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -33,35 +48,21 @@ const run = async () => {
     const jobsCollection = client.db("Job-hunter").collection("jobs");
     const recruitsCollection = client.db("Job-hunter").collection("recruits");
 
-    // jwt
+    // generate jwt token
     app.post("/jwt", async (req, res) => {
       const user = req.body;
-      const secretKey = process.env.JWT_SECRET;
-      const token = jwt.sign(user, secretKey, { expiresIn: "1h" });
-      res
-        .status(200)
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: false,
-        })
-        .send({ message: "JWT set successfully" });
-    });
-
-    // jwt for third party site
-    app.post("/jwt1", (req, res) => {
-      const user = req.body;
-      const secretKey = process.env.JWT_SECRET;
-      const token = jwt.sign(user, secretKey, { expiresIn: "20min" });
-
+      const secret = process.env.JWT_SECRET;
+      const token = jwt.sign(user, secret, { expiresIn: "1hr" });
       res
         .cookie("token", token, {
           httpOnly: true,
-          secure: false,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
-        .json({
-          message: "jwt token create success",
-        });
+        .status(201)
+        .json({ message: "token generate success", token });
     });
+
     // status update
     app.patch("/status/:id", async (req, res) => {
       try {
@@ -105,29 +106,21 @@ const run = async () => {
       }
     });
 
-    app.get("/job-apply/:email", async (req, res) => {
+    app.get("/job-apply/:email", verifyToken, async (req, res) => {
       try {
         const email = req.params.email;
         const filter = { "applicantInfo.email": email };
-        const token = req.cookies.token;
-
-        // validation token
-        if (!token) {
-          return res.status(401).send({ message: "User unauthorized" });
+        if (req.user.email !== email) {
+          return res
+            .status(403)
+            .json({ message: "Forbidden: unAuthorized access" });
         }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log(decoded);
-        if (decoded) {
-          const result = await recruitsCollection.find(filter).toArray();
-          res.status(200).send({
-            success: true,
-            message: "Job applied fetching success",
-            data: result,
-          });
-        } else {
-          res.status(401).send({ message: "Unauthorized" });
-        }
+        const result = await recruitsCollection.find(filter).toArray();
+        res.status(200).send({
+          success: true,
+          message: "Job applied fetching success",
+          data: result,
+        });
       } catch (error) {
         res.status(500).send({
           success: false,
