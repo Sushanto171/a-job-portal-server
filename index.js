@@ -11,7 +11,11 @@ const port = process.env.PROT || 5000;
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://a-job-portal.web.app",
+      "https://a-job-portal.firebaseapp.com",
+    ],
     credentials: true,
   })
 );
@@ -279,6 +283,7 @@ const run = async () => {
           data: result,
         });
       } catch (error) {
+        res.send(error);
         res.status(500).send({
           success: false,
           message: "An error occurred while fetching Jobs",
