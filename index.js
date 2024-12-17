@@ -29,8 +29,8 @@ const verifyToken = (req, res, next) => {
         .json({ message: "Forbidden: invalid or expired token" });
     }
     req.user = decoded;
+    next();
   });
-  next();
 };
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.0zizn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -47,6 +47,18 @@ const run = async () => {
     const usersCollection = client.db("Job-hunter").collection("users");
     const jobsCollection = client.db("Job-hunter").collection("jobs");
     const recruitsCollection = client.db("Job-hunter").collection("recruits");
+
+    // clear cookies
+    app.post("/logOut", (req, res) => {
+      res
+        .clearCookie("token", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .status(204)
+        .end();
+    });
 
     // generate jwt token
     app.post("/jwt", async (req, res) => {
@@ -375,6 +387,17 @@ const run = async () => {
           error: error.message,
         });
       }
+    });
+
+    // global error handler middleware
+    app.use((error, req, res, next) => {
+      console.log(error);
+      const errorStatus = error.status || 5000;
+      res.status(errorStatus).json({
+        message: error.message,
+        success: false,
+        stack: process.env.NODE_ENV ? error.stack : undefined,
+      });
     });
 
     // await client.connect();
